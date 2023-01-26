@@ -7,7 +7,7 @@ using System.Linq;
 using UnityEngine;
 
 [ExtendEditor]
-public class Test : MonoBehaviour
+public class PathTest : MonoBehaviour
 {
     [SerializeField]
     private bool auto = false;
@@ -27,6 +27,6 @@ public class Test : MonoBehaviour
         var path = Astar2DController.Instance.FindPath(transform.position, target.position);
 
         lineRenderer.positionCount = path.Count;
-        lineRenderer.SetPositions(path.Select(p => p.worldPosition).ToArray());
+        lineRenderer.SetPositions(path.ToArray());
     }
 }

@@ -63,7 +63,7 @@ public class Astar2DController : MonoBehaviour
         transform.rotation = Quaternion.identity;
     }
 
-    public List<Astar2DNode> FindPath(Vector3 position, Vector3 target) => astar.FindPath(position, target);
+    public List<Vector3> FindPath(Vector3 position, Vector3 target) => astar.FindPath(position, target);
 
     #region Test
     [InspectorButton]

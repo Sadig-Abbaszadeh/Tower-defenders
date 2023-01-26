@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Threading.Tasks;
 using UnityEngine;
 using UColor = UnityEngine.Color;
 
@@ -82,7 +83,7 @@ public class Astar2D
 
     #region Pathfinding
 
-    public List<Astar2DNode> FindPath(Vector3 position, Vector3 target)
+    public List<Vector3> FindPath(Vector3 position, Vector3 target)
     {
         var start = TryGetClosestNode(position);
         var end = TryGetClosestNode(target);
@@ -90,10 +91,10 @@ public class Astar2D
         if (start == null || end == null)
             return null;
 
-        return FindPath(start, end);
+        return FindPath(start, end, nodes);
     }
 
-    public List<Astar2DNode> FindPath(Astar2DNode startNode, Astar2DNode endNode)
+    private List<Vector3> FindPath(Astar2DNode startNode, Astar2DNode endNode, Arr2D<Astar2DNode> evaluationNodes)
     {
         // reset start and end
         startNode.gCost = 0;
@@ -118,10 +119,10 @@ public class Astar2D
                 var neighborX = currentNode.x + offset.x;
                 var neighborY = currentNode.y + offset.y;
 
-                if (!nodes.IsValidCoordinate(neighborX, neighborY))
+                if (!evaluationNodes.IsValidCoordinate(neighborX, neighborY))
                     continue;
 
-                var neighbor = nodes[neighborX, neighborY];
+                var neighbor = evaluationNodes[neighborX, neighborY];
 
                 if (!neighbor.walkable || closedList.Contains(neighbor))
                     continue;
@@ -171,20 +172,40 @@ public class Astar2D
         }
     }
 
-    private List<Astar2DNode> GetPathToNode(Astar2DNode endNode)
+    private List<Vector3> GetPathToNode(Astar2DNode endNode)
     {
-        var list = new List<Astar2DNode>();
+        var list = new List<Vector3>();
 
         var currentNode = endNode;
 
         while (currentNode != null)
         {
-            list.Add(currentNode);
+            list.Add(currentNode.worldPosition);
             currentNode = currentNode.parent;
         }
 
         // TODO REVERSE
         return list;
+    }
+    #endregion
+
+    #region Async pathfinding
+    public async Task<List<Vector3>> FindPathAsync(Vector3 position, Vector3 target)
+    {
+        var start = TryGetClosestNode(position);
+        var end = TryGetClosestNode(target);
+
+        if (start == null || end == null)
+            return null;
+
+        var result = await Task.Run(() => FindPath(start, end, GetEvaluationNodes()));
+        return result;
+    }
+
+    private Arr2D<Astar2DNode> GetEvaluationNodes()
+    {
+        // TODO make copy of nodes to avoid thread crashing on node ops maybe??
+        throw new NotImplementedException();
     }
     #endregion
 
