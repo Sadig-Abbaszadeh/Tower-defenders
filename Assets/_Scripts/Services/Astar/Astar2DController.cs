@@ -43,6 +43,12 @@ public class Astar2DController : MonoBehaviour
     public static Astar2DController Instance { get; private set; }
 
     [SerializeField]
+    private float nodeSize = .25f;
+    [SerializeField]
+    private LayerMask nonWalkableLayers;
+    [SerializeField]
+    private LayerMoveCost[] penaltyLayers;
+
     private Astar2D astar;
 
     private void Awake()
@@ -55,7 +61,7 @@ public class Astar2DController : MonoBehaviour
 
         Instance = this;
 
-        astar.BakeNavigationArea(transform);
+        Bake();
     }
 
     private void OnValidate()
@@ -67,11 +73,11 @@ public class Astar2DController : MonoBehaviour
 
     #region Test
     [InspectorButton]
-    private void Bake() => astar.BakeNavigationArea(transform);
+    private void Bake() => astar = new Astar2D(nodeSize, nonWalkableLayers, this.transform, penaltyLayers);
 
     public void SetIntersect(Vector3 pos, float rad)
     {
-        astar.NodesTouchingCircle(pos, rad, node => node.inCircle = true);
+        //astar.NodesTouchingCircle(pos, rad, node => node.inCircle = true);
     }
 
     [Space(10), SerializeField]

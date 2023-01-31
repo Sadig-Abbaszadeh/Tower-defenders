@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using UnityEngine;
 using UColor = UnityEngine.Color;
@@ -12,21 +13,22 @@ using UColor = UnityEngine.Color;
 [System.Serializable]
 public class Astar2D
 {
-    [SerializeField, Min(.02f)]
-    private float nodeSize = .5f;
-    [SerializeField, Min(.2f)]
-    private float nodeHeightCheck = 1f;
-    [SerializeField]
-    private LayerMask nonWalkableLayers;
-    [SerializeField]
-    private LayerMoveCost[] penaltyLayers;
-
+    private float nodeSize;
     private Vector3 gridCorner;
 
     private Arr2D<Astar2DNode> nodes;
 
-    public void BakeNavigationArea(Transform worldTransform)
+    public Astar2D(float nodeSize, LayerMask nonWalkableLayers, Transform worldTransform,
+        LayerMoveCost[] penaltyLayers = null, float nodeHeightCheck = 1f)
     {
+        BakeNavigationArea(nodeSize, nonWalkableLayers, worldTransform, penaltyLayers, nodeHeightCheck);
+    }
+
+    public void BakeNavigationArea(float nodeSize, LayerMask nonWalkableLayers, Transform worldTransform,
+        LayerMoveCost[] penaltyLayers = null, float nodeHeightCheck = 1f)
+    {
+        this.nodeSize = nodeSize;
+
         worldTransform.rotation = Quaternion.identity;
 
         var scale = worldTransform.localScale;
@@ -38,8 +40,9 @@ public class Astar2D
 
         nodes = new Arr2D<Astar2DNode>(gridX, gridY);
 
-        var walkableLayers = WalkableLayers;
-        var skipPenaltyChecks = penaltyLayers.Length <= 0;
+        var skipPenaltyChecks = penaltyLayers.IsNullOrEmpty();
+        var walkableLayers = skipPenaltyChecks ? (LayerMask)0 : 
+            WalkableLayers(penaltyLayers);
         var penaltyLookupTable = skipPenaltyChecks ? null :
             penaltyLayers.ToDictionary(l => l.layer.BuiltInLayerIndex, l => l.movePenalty);
 
@@ -48,10 +51,9 @@ public class Astar2D
             for (int y = 0; y < gridY; y++)
             {
                 var node = new Astar2DNode();
-                node.worldPosition = gridCorner + new Vector3(x * nodeSize + nodeSize * .5f, 0,
-                    y * nodeSize + nodeSize * .5f);
+                var worldPosition = GetWorldPosition(x, y);
 
-                node.walkable = !Physics.CheckBox(node.worldPosition, nodeBoxExtents, Quaternion.identity, nonWalkableLayers);
+                node.walkable = !Physics.CheckBox(worldPosition, nodeBoxExtents, Quaternion.identity, nonWalkableLayers);
 
                 node.x = x;
                 node.y = y;
@@ -60,7 +62,7 @@ public class Astar2D
                 if (skipPenaltyChecks)
                     continue;
 
-                var ray = new Ray(node.worldPosition + Vector3.up * 50, Vector3.down);
+                var ray = new Ray(worldPosition + Vector3.up * 50, Vector3.down);
 
                 if (Physics.Raycast(ray, out var result, 100f, walkableLayers))
                     node.movePenalty = penaltyLookupTable[result.transform.gameObject.layer];
@@ -68,17 +70,14 @@ public class Astar2D
         }
     }
 
-    private LayerMask WalkableLayers
+    private LayerMask WalkableLayers(LayerMoveCost[] penaltyLayers)
     {
-        get
-        {
-            LayerMask mask = 0;
+        LayerMask mask = 0;
 
-            foreach (var layer in penaltyLayers)
-                mask |= layer.layer;
+        foreach (var layer in penaltyLayers)
+            mask |= layer.layer;
 
-            return mask;
-        }
+        return mask;
     }
 
     #region Pathfinding
@@ -180,7 +179,7 @@ public class Astar2D
 
         while (currentNode != null)
         {
-            list.Add(currentNode.worldPosition);
+            list.Add(GetWorldPosition(currentNode.x, currentNode.y));
             currentNode = currentNode.parent;
         }
 
@@ -200,12 +199,6 @@ public class Astar2D
 
         var result = await Task.Run(() => FindPath(start, end, GetEvaluationNodes()));
         return result;
-    }
-
-    private Arr2D<Astar2DNode> GetEvaluationNodes()
-    {
-        // TODO make copy of nodes to avoid thread crashing on node ops maybe??
-        throw new NotImplementedException();
     }
     #endregion
 
@@ -251,7 +244,7 @@ public class Astar2D
 
         foreach (var node in nodes)
         {
-            var sqPos = node.worldPosition.XZ();
+            var sqPos = GetWorldPosition(node.x, node.y).XZ();
             var dist = Vector2.Distance(circPos, sqPos);
 
             if (dist <= 0f)
@@ -266,6 +259,24 @@ public class Astar2D
                 actionForNodes(node);
         }
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Vector3 GetWorldPosition(int x, int y)
+    {
+        return gridCorner + new Vector3(x * nodeSize + nodeSize * .5f, 0,
+                    y * nodeSize + nodeSize * .5f);
+    }
+
+    private Arr2D<Astar2DNode> GetEvaluationNodes()
+    {
+        var newNodes = new Arr2D<Astar2DNode>(nodes.Width, nodes.Height);
+
+        for (int x = 0; x < nodes.Width; x++)
+            for (int y = 0; y < nodes.Height; y++)
+                newNodes[x, y] = nodes[x, y].GetCleanClone();
+
+        return newNodes;
+    }
     #endregion
 
     #region Test
@@ -278,13 +289,10 @@ public class Astar2D
 
         foreach (var node in nodes)
         {
-            if (node.inCircle)
-                color = UColor.green;
-            else
-                color = node.walkable ? UColor.white : UColor.red;
+            color = node.walkable ? UColor.white : UColor.red;
 
             Gizmos.color = color;
-            Gizmos.DrawWireCube(node.worldPosition, new Vector3(nodeSize, .25f, nodeSize) * 0.9f);
+            Gizmos.DrawWireCube(GetWorldPosition(node.x, node.y), new Vector3(nodeSize, .25f, nodeSize) * 0.9f);
         }
 
         Gizmos.color = UColor.white;

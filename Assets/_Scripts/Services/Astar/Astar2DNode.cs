@@ -4,7 +4,6 @@ using UnityEngine;
 
 public class Astar2DNode
 {
-    public Vector3 worldPosition;
     public bool walkable;
 
     public int x, y;
@@ -13,10 +12,15 @@ public class Astar2DNode
 
     public Astar2DNode parent;
 
-    // for test
-    public bool inCircle = false;
-
     public int fCost => gCost + hCost;
+
+    public Astar2DNode GetCleanClone() => new Astar2DNode()
+    {
+        walkable = this.walkable,
+        x = this.x,
+        y = this.y,
+        movePenalty = this.movePenalty,
+    };
 
     // List lookup optimization?
     public override bool Equals(object obj)
